@@ -29,7 +29,7 @@ Records appear in `data/records/<id>.json`, are returned to the caller, and are 
 POST /webhook/intake {id, source, message}
    │
    ▼
-[1] Intake Webhook ─► [2] Normalize ─► [3] Prompt Library ─► [4] Classify (LLM) ─► [5] Parse Classification
+[1] Webhook (intake) ─► [2] Normalize ─► [3] Prompt Library ─► [4] Classify (LLM) ─► [5] Parse Classification
                                                                                              │
    ┌─────────────────────────────────────────────────────────────────────────────────────────┘
    ▼

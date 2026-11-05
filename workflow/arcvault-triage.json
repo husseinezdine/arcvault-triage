@@ -238,6 +238,7 @@
     {
       "parameters": {
         "operation": "toJson",
+        "mode": "each",
         "options": {
           "format": true,
           "fileName": "={{ $json.id }}.json"
