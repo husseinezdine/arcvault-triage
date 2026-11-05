@@ -1,0 +1,721 @@
+[
+  {
+    "id": "REQ-0001",
+    "received_at": "2026-11-05T13:49:43.449Z",
+    "processed_at": "2026-11-05T13:49:48.405Z",
+    "source": "email",
+    "raw_message": "Hi, I tried logging in this morning and keep getting a 403 error. My account is arcvault.io/user/jsmith. This started after your update last Tuesday.",
+    "classification": {
+      "category": "Bug Report",
+      "secondary_category": "None",
+      "priority": "High",
+      "confidence": 0.85,
+      "reasoning": "A single user (jsmith) receives an HTTP 403 on login since a recent update, which per the disambiguation rules is a Bug Report rather than an Outage, and the user is fully blocked from core work so High priority applies."
+    },
+    "enrichment": {
+      "core_issue": "Customer cannot log in and receives a 403 error since a platform update last Tuesday.",
+      "identifiers": [
+        {
+          "type": "error_code",
+          "value": "403"
+        },
+        {
+          "type": "url",
+          "value": "arcvault.io/user/jsmith"
+        },
+        {
+          "type": "datetime",
+          "value": "this morning"
+        },
+        {
+          "type": "datetime",
+          "value": "last Tuesday"
+        },
+        {
+          "type": "product_feature",
+          "value": "login"
+        }
+      ],
+      "disputed_amount_usd": 0,
+      "affected_scope": "single_user",
+      "urgency_signal": "low",
+      "urgency_evidence": "I tried logging in this morning and keep getting a 403 error."
+    },
+    "routing": {
+      "standard_queue": "engineering",
+      "final_queue": "engineering",
+      "final_queue_name": "Engineering",
+      "rule": "category=Bug Report -> engineering",
+      "fallback_used": false
+    },
+    "escalation": {
+      "flagged": false,
+      "reasons": [],
+      "human_review_required": false
+    },
+    "summary": "The customer reports they cannot log in and get a 403 error starting this morning, which they link to a platform update last Tuesday. Key identifiers are the 403 error code, the account URL arcvault.io/user/jsmith, and the login feature. First, check the login authorization logs for the jsmith account and review what changed in last Tuesday's platform update.",
+    "pipeline": {
+      "model": "claude-haiku-5-5",
+      "prompt_version": "v1",
+      "queue_base": "https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d",
+      "processing_ms": 4956,
+      "llm_usage": {
+        "classify": {
+          "input_tokens": 1657,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 202,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "enrich": {
+          "input_tokens": 1257,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 317,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "summary": {
+          "input_tokens": 897,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 143,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        }
+      }
+    }
+  },
+  {
+    "id": "REQ-0002",
+    "received_at": "2026-11-05T13:49:51.652Z",
+    "processed_at": "2026-11-05T13:49:57.489Z",
+    "source": "web_form",
+    "raw_message": "We'd love to see a bulk export feature for our audit logs. We're a compliance-heavy org and this would save us hours every month.",
+    "classification": {
+      "category": "Feature Request",
+      "secondary_category": "None",
+      "priority": "Low",
+      "confidence": 0.93,
+      "reasoning": "The customer asks for a bulk export capability for audit logs that they describe as missing, which is a request for new functionality rather than a bug or how-to question."
+    },
+    "enrichment": {
+      "core_issue": "Customer requests a bulk export feature for audit logs to reduce monthly compliance work.",
+      "identifiers": [
+        {
+          "type": "product_feature",
+          "value": "bulk export of audit logs"
+        }
+      ],
+      "disputed_amount_usd": 0,
+      "affected_scope": "unknown",
+      "urgency_signal": "none",
+      "urgency_evidence": ""
+    },
+    "routing": {
+      "standard_queue": "product",
+      "final_queue": "product",
+      "final_queue_name": "Product",
+      "rule": "category=Feature Request -> product",
+      "fallback_used": false
+    },
+    "escalation": {
+      "flagged": false,
+      "reasons": [],
+      "human_review_required": false
+    },
+    "summary": "The customer requests a bulk export feature for audit logs, saying it would save their compliance team hours every month. The key identifier is the requested feature, bulk export of audit logs. Product should log this as a low-priority feature request and review whether bulk audit log export fits the roadmap.",
+    "pipeline": {
+      "model": "claude-haiku-5-5",
+      "prompt_version": "v1",
+      "queue_base": "https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d",
+      "processing_ms": 5836,
+      "llm_usage": {
+        "classify": {
+          "input_tokens": 1647,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 179,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "enrich": {
+          "input_tokens": 1247,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 221,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "summary": {
+          "input_tokens": 816,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 120,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        }
+      }
+    }
+  },
+  {
+    "id": "REQ-0003",
+    "received_at": "2026-11-05T13:50:00.722Z",
+    "processed_at": "2026-11-05T13:50:05.543Z",
+    "source": "support_portal",
+    "raw_message": "Invoice #8821 shows a charge of $1,240 but our contract rate is $980/month. Can someone look into this?",
+    "classification": {
+      "category": "Billing Issue",
+      "secondary_category": "None",
+      "priority": "Medium",
+      "confidence": 0.95,
+      "reasoning": "The customer reports Invoice #8821 charges $1,240 against a contracted rate of $980/month, which is a billing discrepancy with a likely workaround via review and credit."
+    },
+    "enrichment": {
+      "core_issue": "Customer disputes invoice #8821 charge of $1,240, stating the contract rate is $980/month, and asks for review.",
+      "identifiers": [
+        {
+          "type": "invoice_number",
+          "value": "#8821"
+        },
+        {
+          "type": "amount",
+          "value": "$1,240"
+        },
+        {
+          "type": "amount",
+          "value": "$980/month"
+        }
+      ],
+      "disputed_amount_usd": 260,
+      "affected_scope": "unknown",
+      "urgency_signal": "none",
+      "urgency_evidence": ""
+    },
+    "routing": {
+      "standard_queue": "billing",
+      "final_queue": "billing",
+      "final_queue_name": "Billing",
+      "rule": "category=Billing Issue -> billing",
+      "fallback_used": false
+    },
+    "escalation": {
+      "flagged": false,
+      "reasons": [],
+      "human_review_required": false
+    },
+    "summary": "The customer disputes invoice #8821, which shows a charge of $1,240, and says their contract rate is $980 per month. They are asking the Billing team to review the invoice. Check invoice #8821 against the contract rate of $980/month to confirm the $1,240 charge and find the source of the difference.",
+    "pipeline": {
+      "model": "claude-haiku-5-5",
+      "prompt_version": "v1",
+      "queue_base": "https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d",
+      "processing_ms": 4821,
+      "llm_usage": {
+        "classify": {
+          "input_tokens": 1646,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 190,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "enrich": {
+          "input_tokens": 1246,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 265,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "summary": {
+          "input_tokens": 857,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 128,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        }
+      }
+    }
+  },
+  {
+    "id": "REQ-0004",
+    "received_at": "2026-11-05T13:50:08.774Z",
+    "processed_at": "2026-11-05T13:50:15.112Z",
+    "source": "email",
+    "raw_message": "I'm not sure if this is the right place to ask, but is there a way to set up SSO with Okta? We're evaluating switching our auth provider.",
+    "classification": {
+      "category": "Technical Question",
+      "secondary_category": "None",
+      "priority": "Low",
+      "confidence": 0.85,
+      "reasoning": "The customer asks whether SSO with Okta is possible, a capability question with nothing broken and no time pressure, so it is a Technical Question at Low priority."
+    },
+    "enrichment": {
+      "core_issue": "Customer asks whether SSO can be set up with Okta while evaluating a switch of their auth provider.",
+      "identifiers": [
+        {
+          "type": "integration",
+          "value": "Okta"
+        },
+        {
+          "type": "product_feature",
+          "value": "SSO"
+        }
+      ],
+      "disputed_amount_usd": 0,
+      "affected_scope": "unknown",
+      "urgency_signal": "none",
+      "urgency_evidence": ""
+    },
+    "routing": {
+      "standard_queue": "it-security",
+      "final_queue": "it-security",
+      "final_queue_name": "IT/Security",
+      "rule": "category=Technical Question -> it-security",
+      "fallback_used": false
+    },
+    "escalation": {
+      "flagged": false,
+      "reasons": [],
+      "human_review_required": false
+    },
+    "summary": "The customer asks whether single sign-on can be configured with Okta while they evaluate changing their authentication provider. The key identifiers are the Okta integration and the SSO product feature. First, confirm whether ArcVault supports Okta as an SSO identity provider and share the setup steps or documentation with the customer, noting that they are still evaluating.",
+    "pipeline": {
+      "model": "claude-haiku-5-5",
+      "prompt_version": "v1",
+      "queue_base": "https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d",
+      "processing_ms": 6338,
+      "llm_usage": {
+        "classify": {
+          "input_tokens": 1650,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 182,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "enrich": {
+          "input_tokens": 1250,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 237,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "summary": {
+          "input_tokens": 838,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 142,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        }
+      }
+    }
+  },
+  {
+    "id": "REQ-0005",
+    "received_at": "2026-11-05T13:50:18.365Z",
+    "processed_at": "2026-11-05T13:50:25.888Z",
+    "source": "web_form",
+    "raw_message": "Your dashboard stopped loading for us around 2pm EST. Checked our end - it's definitely on yours. Multiple users affected.",
+    "classification": {
+      "category": "Incident/Outage",
+      "secondary_category": "None",
+      "priority": "High",
+      "confidence": 0.9,
+      "reasoning": "The dashboard has stopped loading for multiple users across the customer's organization since around 2pm EST, which matches the outage rule for multi-user unavailability of a core part of the service."
+    },
+    "enrichment": {
+      "core_issue": "Customer reports the ArcVault dashboard stopped loading around 2pm EST for multiple users, which they attribute to ArcVault's side.",
+      "identifiers": [
+        {
+          "type": "datetime",
+          "value": "around 2pm EST"
+        },
+        {
+          "type": "product_feature",
+          "value": "dashboard"
+        }
+      ],
+      "disputed_amount_usd": 0,
+      "affected_scope": "multiple_users",
+      "urgency_signal": "medium",
+      "urgency_evidence": "Multiple users affected; dashboard stopped loading around 2pm EST"
+    },
+    "routing": {
+      "standard_queue": "engineering",
+      "final_queue": "escalation",
+      "final_queue_name": "Escalation (Human Review)",
+      "rule": "category=Incident/Outage -> engineering",
+      "fallback_used": false
+    },
+    "escalation": {
+      "flagged": true,
+      "reasons": [
+        "category:incident_outage",
+        "keyword:multiple users",
+        "scope:multiple_users"
+      ],
+      "human_review_required": true
+    },
+    "summary": "ESCALATED: The customer reports that the ArcVault dashboard stopped loading for multiple users around 2pm EST and says they have ruled out their own side. Check the platform status and recent incidents for the dashboard around that time first, then confirm whether the outage is affecting other customers before replying to the customer.",
+    "pipeline": {
+      "model": "claude-haiku-5-5",
+      "prompt_version": "v1",
+      "queue_base": "https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d",
+      "processing_ms": 7523,
+      "llm_usage": {
+        "classify": {
+          "input_tokens": 1650,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 190,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "enrich": {
+          "input_tokens": 1250,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 284,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "summary": {
+          "input_tokens": 889,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 131,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        }
+      }
+    }
+  },
+  {
+    "id": "REQ-0006",
+    "received_at": "2026-11-05T13:50:29.123Z",
+    "processed_at": "2026-11-05T13:50:32.815Z",
+    "source": "email",
+    "raw_message": "hey, stuff is not working, please help asap",
+    "classification": {
+      "category": "Technical Question",
+      "secondary_category": "None",
+      "priority": "Medium",
+      "confidence": 0.2,
+      "reasoning": "The message is extremely vague with no product, feature, error, or scope details, so the category cannot be determined reliably; it is routed as a low-confidence guess pending clarification, and the \"asap\" wording warrants Medium priority."
+    },
+    "enrichment": {
+      "core_issue": "Customer reports that something is not working and requests urgent help, without specifying the product or problem.",
+      "identifiers": [],
+      "disputed_amount_usd": 0,
+      "affected_scope": "unknown",
+      "urgency_signal": "high",
+      "urgency_evidence": "please help asap"
+    },
+    "routing": {
+      "standard_queue": "it-security",
+      "final_queue": "escalation",
+      "final_queue_name": "Escalation (Human Review)",
+      "rule": "category=Technical Question -> it-security",
+      "fallback_used": true
+    },
+    "escalation": {
+      "flagged": true,
+      "reasons": [
+        "low_confidence:0.20<0.7"
+      ],
+      "human_review_required": true
+    },
+    "summary": "ESCALATED: The model could not classify this request with enough confidence (0.20, below the 0.7 threshold), so it needs a person to review it. The customer says \"stuff is not working\" and asks for urgent help, but does not name the product, the error, or any account or order identifiers, and none were found in the message. First, reply to the customer and ask which ArcVault product or service is affected, what they were doing when the problem began, and any error message or account details they can share.",
+    "pipeline": {
+      "model": "claude-haiku-5-5",
+      "prompt_version": "v1",
+      "queue_base": "https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d",
+      "processing_ms": 3692,
+      "llm_usage": {
+        "classify": {
+          "input_tokens": 1618,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 204,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "enrich": {
+          "input_tokens": 1218,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 199,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "summary": {
+          "input_tokens": 787,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 174,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        }
+      }
+    }
+  },
+  {
+    "id": "REQ-0007",
+    "received_at": "2026-11-05T13:50:36.062Z",
+    "processed_at": "2026-11-05T13:50:40.902Z",
+    "source": "support_portal",
+    "raw_message": "We were charged twice this month ($2,100 extra) and also the CSV export button does nothing since yesterday.",
+    "classification": {
+      "category": "Billing Issue",
+      "secondary_category": "Bug Report",
+      "priority": "High",
+      "confidence": 0.8,
+      "reasoning": "The customer reports a duplicate $2,100 charge (revenue/billing impact, which is the highest business impact) and a secondary broken CSV export button since yesterday, which is a bug report."
+    },
+    "enrichment": {
+      "core_issue": "Customer reports being charged twice this month, with $2,100 extra, and the CSV export button not working since yesterday.",
+      "identifiers": [
+        {
+          "type": "amount",
+          "value": "$2,100"
+        },
+        {
+          "type": "datetime",
+          "value": "this month"
+        },
+        {
+          "type": "datetime",
+          "value": "since yesterday"
+        },
+        {
+          "type": "product_feature",
+          "value": "CSV export button"
+        }
+      ],
+      "disputed_amount_usd": 2100,
+      "affected_scope": "unknown",
+      "urgency_signal": "low",
+      "urgency_evidence": "since yesterday"
+    },
+    "routing": {
+      "standard_queue": "billing",
+      "final_queue": "escalation",
+      "final_queue_name": "Escalation (Human Review)",
+      "rule": "category=Billing Issue -> billing",
+      "fallback_used": false
+    },
+    "escalation": {
+      "flagged": true,
+      "reasons": [
+        "billing_dispute_usd:2100>500"
+      ],
+      "human_review_required": true
+    },
+    "summary": "ESCALATED: The customer was billed twice this month, an extra $2,100, which is above the $500 billing dispute threshold, so this needs human review. They also report the CSV export button has done nothing since yesterday. Key identifiers to check are the $2,100 duplicate charge this month and the CSV export button failure starting yesterday. Start by pulling the billing history for this month to confirm the duplicate charge before reviewing the export issue.",
+    "pipeline": {
+      "model": "claude-haiku-5-5",
+      "prompt_version": "v1",
+      "queue_base": "https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d",
+      "processing_ms": 4841,
+      "llm_usage": {
+        "classify": {
+          "input_tokens": 1642,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 197,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "enrich": {
+          "input_tokens": 1242,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 289,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "summary": {
+          "input_tokens": 890,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 174,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,18 @@
+# --- secrets / local state: never commit ---
+.env
+*.key.json
+# n8n export incl. decrypted credentials
+data/backup/
+# old bind-mount folder (unused)
+n8n_data/
+# private study notes
+notes/
+queues.txt
+
+# --- runtime output (the curated copy lives in output/) ---
+data/records/*.json
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/

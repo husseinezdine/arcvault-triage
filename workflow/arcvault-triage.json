@@ -1,0 +1,448 @@
+{
+  "name": "Arcvault",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "f717c1c4-c913-40d4-ba8b-f24e87b15fd9",
+      "name": "Webhook",
+      "webhookId": "4be768f8-b251-4143-98a0-ed5577523c67"
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * NODE 2 — Normalize   (Step 1: Ingestion)\n *\n * INPUT  : $input.first().json.body  -> the raw POST body received by \"Intake Webhook\"\n *          { id?: string, source: 'email'|'web_form'|'support_portal', message: string }\n *          (n8n puts the HTTP body under .body, headers under .headers, etc.)\n * OUTPUT : one item  { id, source, raw_message, received_at, pipeline:{provider, model, prompt_version, queue_base, started_ms} }\n * NEXT   : \"Prompt Library\" reads this item as $json.\n *          Later nodes re-read it with $('Normalize').first().json because each HTTP Request node\n *          REPLACES the item with the API response, so the original record must be fetched back by node name.\n *\n * HOW DATA PASSES BETWEEN NODES: every Code node must `return [{ json: {...} }]`; that array becomes the\n * input ($input / $json) of the next node along the arrow.\n */\nconst CONFIG = {\n  provider: 'anthropic',    // 'anthropic' \n  model: 'claude-haiku-5-5',          // anthropic: claude-haiku-5-5 (cheap, fast, forced tool-use = schema-guaranteed JSON)\n  prompt_version: 'v1',\n  queue_base: 'https://webhook.site/31ed0ad2-d3f3-4988-90b9-896456e1f27d', // mock downstream system (webhook.site); each queue is a sub-path\n};\n\n// 1) read the webhook payload (first and only item of this execution)\nconst body = $input.first().json.body || {};\nconst message = String(body.message ?? body.text ?? '').trim();\nif (!message) throw new Error('Rejected: empty message');   // throwing stops the run -> webhook caller gets an error\n\n// 2) whitelist the source; anything else becomes 'unknown' (never trust the caller)\nconst allowedSources = ['email', 'web_form', 'support_portal'];\nconst source = allowedSources.includes(String(body.source || '').toLowerCase()) ? String(body.source).toLowerCase() : 'unknown';\n// 3) stable id for the record and the output file name\nconst id = body.id || ('REQ-' + Date.now().toString(36).toUpperCase());\n\n// 4) emit the normalized record + pipeline metadata used by every later node\nreturn [{ json: {\n  id,\n  source,\n  raw_message: message,\n  received_at: new Date().toISOString(),\n  pipeline: { ...CONFIG, started_ms: Date.now() },\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "83385d1c-3f3a-4cd6-b054-d5344d7a22aa",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * NODE 3 — Prompt Library\n *\n * INPUT  : $json = the normalized record from \"Normalize\" ({ id, source, raw_message, received_at, pipeline })\n * OUTPUT : the same record + `prompts` (all 3 system prompts and JSON schemas) + `request`\n *          (the ready-to-send classification request body for the next HTTP node)\n * NEXT   : \"Classify (LLM)\" sends  JSON.stringify($json.request)  as the HTTP body.\n *          \"Parse Classification\" and \"Route & Escalate\" later fetch the prompts with\n *          $('Prompt Library').first().json.prompts  to build the enrichment / summary requests.\n *\n * Keeping every prompt in ONE node makes them reviewable in one place (deliverable 4.3).\n */\nconst prompts = {\n  classify: { system: \"You are the intake triage classifier for ArcVault, a B2B software company. You receive ONE inbound customer message (from email, a web form, or the support portal) and classify it so it can be routed to the right team.\\n\\nCATEGORIES \\u2014 choose exactly one as `category`:\\n- Bug Report: a specific feature behaves incorrectly for the customer (errors, wrong results, broken buttons). Usually one account or user; the product as a whole is up.\\n- Incident/Outage: the service, or a major part of it, is unavailable or badly degraded RIGHT NOW, typically for multiple users or a whole organization.\\n- Billing Issue: invoices, charges, refunds, contract rates, payment methods.\\n- Feature Request: asking for functionality that does not exist, or an improvement to existing functionality.\\n- Technical Question: how-to, configuration, integration, or capability questions where nothing is broken.\\n\\nDISAMBIGUATION RULES:\\n- \\\"not loading\\\" / \\\"down\\\" / \\\"can't access\\\" AND multiple users or a whole org -> Incident/Outage, not Bug Report.\\n- A single user getting an error (e.g. HTTP 403 on login) -> Bug Report, even if that user is fully blocked.\\n- \\\"Can we do X?\\\" about an existing capability -> Technical Question. \\\"We'd like X\\\" about a missing capability -> Feature Request.\\n- If a message has two intents, choose the one with the highest business impact as `category` and put the other in `secondary_category` (otherwise use \\\"None\\\").\\n\\nPRIORITY RUBRIC:\\n- High: customer blocked from core work, revenue affected, many users affected, or security-related.\\n- Medium: degraded experience or a billing discrepancy; a workaround likely exists.\\n- Low: requests, questions, and cosmetic issues with no time pressure.\\n\\nCONFIDENCE: a number from 0 to 1 for how certain you are about `category`. Use a value BELOW 0.7 when the message is vague, lacks details, or fits two categories almost equally. Do not inflate confidence.\\n\\nEXAMPLES (illustrative only):\\n- \\\"The PDF report shows last month's totals instead of this month's for my account.\\\" -> Bug Report, Medium, 0.9\\n- \\\"Nobody in our company can open the app since 9am, we all get a blank page.\\\" -> Incident/Outage, High, 0.95\\n- \\\"Do you support SAML with Azure AD?\\\" -> Technical Question, Low, 0.85\\n- \\\"Please add dark mode.\\\" -> Feature Request, Low, 0.95\\n- \\\"Why was I billed in USD instead of EUR?\\\" -> Billing Issue, Medium, 0.9\\n- \\\"help\\\" -> Technical Question, Low, 0.3\\n\\nOutput ONLY JSON matching the schema. `reasoning` is one sentence.\", schema: {\"type\": \"object\", \"properties\": {\"category\": {\"type\": \"string\", \"enum\": [\"Bug Report\", \"Feature Request\", \"Billing Issue\", \"Technical Question\", \"Incident/Outage\"]}, \"secondary_category\": {\"type\": \"string\", \"enum\": [\"None\", \"Bug Report\", \"Feature Request\", \"Billing Issue\", \"Technical Question\", \"Incident/Outage\"]}, \"priority\": {\"type\": \"string\", \"enum\": [\"Low\", \"Medium\", \"High\"]}, \"confidence\": {\"type\": \"number\", \"description\": \"0 to 1\"}, \"reasoning\": {\"type\": \"string\"}}, \"required\": [\"category\", \"secondary_category\", \"priority\", \"confidence\", \"reasoning\"]} },\n  enrich:   { system: \"You extract structured facts from ONE inbound customer message for ArcVault support. Do NOT classify and do NOT invent facts: extract only what is explicitly in the message.\\n\\nFIELDS:\\n- core_issue: the problem or request in ONE neutral sentence, max 25 words.\\n- identifiers: every concrete identifier mentioned \\u2014 account IDs or usernames, URLs, invoice numbers, error codes (e.g. \\\"HTTP 403\\\"), money amounts, dates/times, product features, third-party integrations (e.g. \\\"Okta\\\"). Empty array if none.\\n- disputed_amount_usd: if the message disputes a charge, the amount IN DISPUTE in USD. Example: charged 1240 but expected 980 -> 260. \\\"Charged twice, $2,100 extra\\\" -> 2100. Use 0 when there is no billing dispute.\\n- affected_scope: \\\"single_user\\\", \\\"multiple_users\\\", or \\\"unknown\\\" \\u2014 based only on what the message says.\\n- urgency_signal: none / low / medium / high, judged from the message content (words like \\\"asap\\\", \\\"urgent\\\", \\\"multiple users\\\", \\\"stopped\\\", \\\"since this morning\\\", deadlines) \\u2014 NOT from the type of request.\\n- urgency_evidence: the exact words that justify urgency_signal, or an empty string.\\n\\nOutput ONLY JSON matching the schema.\",   schema: {\"type\": \"object\", \"properties\": {\"core_issue\": {\"type\": \"string\"}, \"identifiers\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"type\": {\"type\": \"string\", \"enum\": [\"account_id\", \"url\", \"invoice_number\", \"error_code\", \"amount\", \"datetime\", \"product_feature\", \"integration\", \"other\"]}, \"value\": {\"type\": \"string\"}}, \"required\": [\"type\", \"value\"]}}, \"disputed_amount_usd\": {\"type\": \"number\"}, \"affected_scope\": {\"type\": \"string\", \"enum\": [\"single_user\", \"multiple_users\", \"unknown\"]}, \"urgency_signal\": {\"type\": \"string\", \"enum\": [\"none\", \"low\", \"medium\", \"high\"]}, \"urgency_evidence\": {\"type\": \"string\"}}, \"required\": [\"core_issue\", \"identifiers\", \"disputed_amount_usd\", \"affected_scope\", \"urgency_signal\", \"urgency_evidence\"]} },\n  summary:  { system: \"You write a 2\\u20133 sentence handoff note for the ArcVault team that will receive this request. The audience is the team named in QUEUE. Say: what the customer reports, the key identifiers to look at, and the first thing the team should do. If ESCALATED is true, start the note with \\\"ESCALATED:\\\" and state the reason in plain words. Do not repeat the category/priority labels, do not add anything that is not in the input, no bullet points, plain English.\\n\\nOutput ONLY JSON matching the schema.\",  schema: {\"type\": \"object\", \"properties\": {\"summary\": {\"type\": \"string\"}}, \"required\": [\"summary\"]} },\n};\n/**\n * buildRequest(prompt, userText) -> provider-specific request body\n *   prompt   : { system: string, schema: JSON Schema }   (one entry of `prompts`)\n *   userText : the customer message (plus context) placed in the user turn\n * Reads provider/model from the Normalize config so switching provider is a one-line change there.\n */\nconst buildRequest = (prompt, userText) => {\n  const cfg = $('Normalize').first().json.pipeline;\n  if (cfg.provider === 'anthropic') {\n    // Forced tool use: the model must call `emit` with arguments matching input_schema -> schema-guaranteed JSON, no prose.\n    return {\n      model: cfg.model, max_tokens: 1024,   // no `temperature`: rejected (deprecated) by current Claude models\n      system: prompt.system,\n      messages: [{ role: 'user', content: userText }],\n      tools: [{ name: 'emit', description: 'Return the structured result.', input_schema: prompt.schema }],\n      tool_choice: { type: 'tool', name: 'emit' },\n    };\n  }\n  return { \n    systemInstruction: { parts: [{ text: prompt.system }] },\n    contents: [{ role: 'user', parts: [{ text: userText }] }],\n    generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: prompt.schema },\n  };\n};\n// the record coming from Normalize\nconst m = $input.first().json;\n// build the Step-2 (classification) request; the HTTP node only serializes it\nconst request = buildRequest(prompts.classify, 'SOURCE: ' + m.source + '\\nMESSAGE:\\n' + m.raw_message);\nreturn [{ json: { ...m, prompts, request } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "c0bab501-463d-4859-9368-dbce8f236a8b",
+      "name": "Prompt Library"
+    },
+    {
+      "parameters": {
+        "method": "=POST",
+        "url": "={{ $('Normalize').first().json.pipeline.provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://generativelanguage.googleapis.com/v1beta/models/' + $('Normalize').first().json.pipeline.model + ':generateContent' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "=json",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        0
+      ],
+      "id": "2b09db45-8f37-40bd-947d-64ecb0e225e8",
+      "name": "Classify (LLM)",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OHjT50KnSbT9Gji3",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * parseLLM(resp) -> the structured object the model produced\n *   Anthropic: resp.content[] contains a block { type:'tool_use', input:{...} } because we FORCE the `emit` tool,\n *              so `input` is already JSON that matches our schema.\n *   Gemini   : resp.candidates[0].content.parts[].text is a JSON string (JSON mode) -> strip fences, JSON.parse.\n * Throws if neither shape is present -> the run fails loudly instead of routing garbage.\n */\nfunction parseLLM(resp) {\n  if (Array.isArray(resp?.content)) {                       // anthropic\n    const block = resp.content.find(b => b.type === 'tool_use');\n    if (block && block.input) return block.input;\n    throw new Error('LLM returned no tool_use block: ' + JSON.stringify(resp).slice(0, 200));\n  }\n  const text = (resp?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join(''); \n  const clean = text.replace(/^```(json)?/i, '').replace(/```$/, '').trim();\n  try { return JSON.parse(clean); }\n  catch (e) { throw new Error('LLM returned non-JSON output: ' + text.slice(0, 200)); }\n}\n/** usage(resp) -> token usage object of either provider (kept on the record for cost tracking) */\nfunction usage(resp) { return resp?.usage || resp?.usageMetadata || null; }\n\n/**\n * NODE 5 — Parse Classification   (Step 2: Classification)\n *\n * INPUT  : $input.first().json = the RAW Anthropic/Gemini API response from \"Classify (LLM)\"\n *          (the HTTP node replaced our record with the API answer — that is why we fetch the record back below)\n * READS  : $('Normalize').first().json        -> the original record\n *          $('Prompt Library').first().json   -> prompts, to build the next (enrichment) request\n * OUTPUT : record + classification{category, secondary_category, priority, confidence, reasoning}\n *          + llm_usage.classify + request (enrichment request body)\n * NEXT   : \"Enrich (LLM)\" sends JSON.stringify($json.request)\n *\n * WHY VALIDATE: the schema is forced, but downstream rules must never see an unexpected value.\n * Every field is checked against its allowed list and confidence is clamped to [0, 1].\n */\nconst base = $('Normalize').first().json;   // original record (id, source, raw_message, pipeline)\nconst resp = $input.first().json;             // raw API response\nconst c = parseLLM(resp);                     // -> { category, secondary_category, priority, confidence, reasoning }\nconst CATEGORIES = ['Bug Report', 'Feature Request', 'Billing Issue', 'Technical Question', 'Incident/Outage'];\nconst PRIORITIES = ['Low', 'Medium', 'High'];\n\nconst classification = {\n  category: CATEGORIES.includes(c.category) ? c.category : 'Unknown',\n  secondary_category: CATEGORIES.includes(c.secondary_category) ? c.secondary_category : 'None',\n  priority: PRIORITIES.includes(c.priority) ? c.priority : 'Medium',\n  confidence: Math.max(0, Math.min(1, Number(c.confidence) || 0)),\n  reasoning: String(c.reasoning || ''),\n};\nconst buildRequest = (prompt, userText) => {\n  const cfg = $('Normalize').first().json.pipeline;\n  if (cfg.provider === 'anthropic') {\n    // Forced tool use: the model must call `emit` with arguments matching input_schema -> schema-guaranteed JSON, no prose.\n    return {\n      model: cfg.model, max_tokens: 1024,   // no `temperature`: rejected (deprecated) by current Claude models\n      system: prompt.system,\n      messages: [{ role: 'user', content: userText }],\n      tools: [{ name: 'emit', description: 'Return the structured result.', input_schema: prompt.schema }],\n      tool_choice: { type: 'tool', name: 'emit' },\n    };\n  }\n  return { \n    systemInstruction: { parts: [{ text: prompt.system }] },\n    contents: [{ role: 'user', parts: [{ text: userText }] }],\n    generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: prompt.schema },\n  };\n};\nconst prompts = $('Prompt Library').first().json.prompts;\n// prepare Step 3 (enrichment) — same message, different prompt/schema\nconst request = buildRequest(prompts.enrich, 'SOURCE: ' + base.source + '\\nMESSAGE:\\n' + base.raw_message);\nreturn [{ json: { ...base, classification, llm_usage: { classify: usage(resp) }, request } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "ce58492c-cd75-4753-98ff-7273714bab67",
+      "name": "Parse Classification"
+    },
+    {
+      "parameters": {
+        "method": "=POST",
+        "url": "={{ $('Normalize').first().json.pipeline.provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://generativelanguage.googleapis.com/v1beta/models/' + $('Normalize').first().json.pipeline.model + ':generateContent' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "00633bb6-eca4-4d1d-833e-f24dcf90fc6b",
+      "name": "Enrich (LLM)",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OHjT50KnSbT9Gji3",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Works for both providers: Anthropic tool_use block\nfunction parseLLM(resp) {\n  if (Array.isArray(resp?.content)) {                       // anthropic\n    const block = resp.content.find(b => b.type === 'tool_use');\n    if (block && block.input) return block.input;\n    throw new Error('LLM returned no tool_use block: ' + JSON.stringify(resp).slice(0, 200));\n  }\n  const text = (resp?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');   // gemini\n  const clean = text.replace(/^```(json)?/i, '').replace(/```$/, '').trim();\n  try { return JSON.parse(clean); }\n  catch (e) { throw new Error('LLM returned non-JSON output: ' + text.slice(0, 200)); }\n}\n/** usage(resp) -> token usage object of either provider (kept on the record for cost tracking) */\nfunction usage(resp) { return resp?.usage || resp?.usageMetadata || null; }\n\n/**\n * NODE 7 — Parse Enrichment   (Step 3: Enrichment)\n *\n * INPUT  : $input.first().json = RAW API response from \"Enrich (LLM)\"\n * READS  : $('Parse Classification').first().json -> record + classification (+ the old `request`, dropped here)\n * OUTPUT : record + enrichment{core_issue, identifiers[], disputed_amount_usd, affected_scope, urgency_signal, urgency_evidence}\n *          + llm_usage.enrich\n * NEXT   : \"Route & Escalate\" applies the deterministic rules on classification + enrichment.\n *\n * Types are normalized here (number >= 0, values from allowed lists) so the routing rules can trust them.\n */\nconst prev = $('Parse Classification').first().json;   // record so far\nconst resp = $input.first().json;\nconst e = parseLLM(resp);\n\nconst enrichment = {\n  core_issue: String(e.core_issue || ''),\n  identifiers: Array.isArray(e.identifiers) ? e.identifiers.filter(i => i && i.value).map(i => ({ type: String(i.type || 'other'), value: String(i.value) })) : [],\n  disputed_amount_usd: Math.max(0, Number(e.disputed_amount_usd) || 0),\n  affected_scope: ['single_user', 'multiple_users', 'unknown'].includes(e.affected_scope) ? e.affected_scope : 'unknown',\n  urgency_signal: ['none', 'low', 'medium', 'high'].includes(e.urgency_signal) ? e.urgency_signal : 'none',\n  urgency_evidence: String(e.urgency_evidence || ''),\n};\nconst { request, ...rest } = prev;   // drop the consumed enrichment request from the record\nreturn [{ json: { ...rest, enrichment, llm_usage: { ...prev.llm_usage, enrich: usage(resp) } } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "e3a9efc3-684d-4f47-97b5-f4b133e7f91a",
+      "name": "Parse Enrichment"
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * NODE 8 — Route & Escalate   (Step 4: Routing decision  +  Step 6: Human escalation flag)\n *\n * INPUT  : $input.first().json = record with classification + enrichment (from \"Parse Enrichment\")\n * READS  : $('Prompt Library').first().json.prompts -> to build the summary request\n * OUTPUT : record + routing{standard_queue, final_queue, final_queue_name, rule, fallback_used}\n *          + escalation{flagged, reasons[], human_review_required} + request (summary request body)\n * NEXT   : \"Summarize (LLM)\" sends JSON.stringify($json.request); the summary needs to know the\n *          destination queue and the escalation reasons, which is why routing runs BEFORE summarizing.\n *\n * DELIBERATELY NO LLM HERE: plain rules are auditable (every record carries its `reasons`),\n * unit-testable, cost zero tokens, and a support manager can change a threshold without touching prompts.\n */\n\nconst ROUTING_TABLE = {               // category -> standard destination queue\n  'Bug Report':         { queue: 'engineering', name: 'Engineering' },\n  'Incident/Outage':    { queue: 'engineering', name: 'Engineering' },   // also always escalated, see below\n  'Billing Issue':      { queue: 'billing',     name: 'Billing' },\n  'Feature Request':    { queue: 'product',     name: 'Product' },\n  'Technical Question': { queue: 'it-security', name: 'IT/Security' },\n};\nconst ESCALATION_QUEUE = { queue: 'escalation', name: 'Escalation (Human Review)' };\n\nconst CONFIDENCE_THRESHOLD = 0.70;    // required by the assessment\nconst BILLING_ESCALATION_USD = 500;   // \"billing error > $500\" — interpreted as the amount IN DISPUTE, not the invoice total (documented assumption)\nconst ESCALATION_KEYWORDS = ['outage', 'down for all', 'all users', 'multiple users', 'everyone', 'data loss', 'breach', 'security incident', 'hacked'];\n\nconst r = $input.first().json;\nconst { classification: c, enrichment: e } = r;\nconst text = r.raw_message.toLowerCase();\n\n// collect every escalation reason that applies (any one is enough to escalate)\nconst reasons = [];\nif (c.confidence < CONFIDENCE_THRESHOLD) reasons.push(`low_confidence:${c.confidence.toFixed(2)}<${CONFIDENCE_THRESHOLD}`);\nif (c.category === 'Incident/Outage') reasons.push('category:incident_outage');\nif (c.category === 'Unknown') reasons.push('category:unknown');\nfor (const k of ESCALATION_KEYWORDS) if (text.includes(k)) reasons.push(`keyword:${k}`);\nif (e.disputed_amount_usd > BILLING_ESCALATION_USD) reasons.push(`billing_dispute_usd:${e.disputed_amount_usd}>${BILLING_ESCALATION_USD}`);\nif (e.affected_scope === 'multiple_users' && ['Bug Report', 'Incident/Outage'].includes(c.category)) reasons.push('scope:multiple_users');\n\n// standard destination from the table; fallback if the category is unknown or confidence is low\nconst standard = ROUTING_TABLE[c.category];\nconst fallback_used = !standard || c.confidence < CONFIDENCE_THRESHOLD;\nconst flagged = reasons.length > 0;\nconst final = flagged ? ESCALATION_QUEUE : standard;   // escalated records go to the separate human-review queue\n\nconst routing = {\n  standard_queue: standard ? standard.queue : ESCALATION_QUEUE.queue,\n  final_queue: final.queue,\n  final_queue_name: final.name,\n  rule: standard ? `category=${c.category} -> ${standard.queue}` : 'no table match -> escalation',\n  fallback_used,\n};\nconst escalation = { flagged, reasons, human_review_required: flagged };\n\nconst buildRequest = (prompt, userText) => {\n  const cfg = $('Normalize').first().json.pipeline;\n  if (cfg.provider === 'anthropic') {\n    // Forced tool use: the model must call `emit` with arguments matching input_schema -> schema-guaranteed JSON, no prose.\n    return {\n      model: cfg.model, max_tokens: 1024,   // no `temperature`: rejected (deprecated) by current Claude models\n      system: prompt.system,\n      messages: [{ role: 'user', content: userText }],\n      tools: [{ name: 'emit', description: 'Return the structured result.', input_schema: prompt.schema }],\n      tool_choice: { type: 'tool', name: 'emit' },\n    };\n  }\n  return { // gemini\n    systemInstruction: { parts: [{ text: prompt.system }] },\n    contents: [{ role: 'user', parts: [{ text: userText }] }],\n    generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: prompt.schema },\n  };\n};\nconst prompts = $('Prompt Library').first().json.prompts;\n// context handed to the summary prompt (Step 5) — the receiving team's point of view\nconst summaryInput = [\n  'QUEUE: ' + routing.final_queue_name,\n  'ESCALATED: ' + escalation.flagged + (escalation.flagged ? ' (' + escalation.reasons.join(', ') + ')' : ''),\n  'CATEGORY: ' + c.category + ' | PRIORITY: ' + c.priority,\n  'CORE ISSUE: ' + e.core_issue,\n  'IDENTIFIERS: ' + JSON.stringify(e.identifiers),\n  'RAW MESSAGE:\\n' + r.raw_message,\n].join('\\n');\nconst request = buildRequest(prompts.summary, summaryInput);\nreturn [{ json: { ...r, routing, escalation, request } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        0
+      ],
+      "id": "71026dcd-d622-4f12-a457-ba5894fe49dc",
+      "name": "Route & Escalate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Normalize').first().json.pipeline.provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://generativelanguage.googleapis.com/v1beta/models/' + $('Normalize').first().json.pipeline.model + ':generateContent' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1792,
+        0
+      ],
+      "id": "4ca8a2bb-2dc2-4dd8-8a0d-3daeab327244",
+      "name": "Summarize (LLM)",
+      "executeOnce": false,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OHjT50KnSbT9Gji3",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * parseLLM(resp) -> the structured object the model produced\n *   Anthropic: resp.content[] contains a block { type:'tool_use', input:{...} } because we FORCE the `emit` tool,\n *              so `input` is already JSON that matches our schema.\n *   Gemini   : resp.candidates[0].content.parts[].text is a JSON string (JSON mode) -> strip fences, JSON.parse.\n * Throws if neither shape is present -> the run fails loudly instead of routing garbage.\n */\nfunction parseLLM(resp) {\n  if (Array.isArray(resp?.content)) {                       // anthropic\n    const block = resp.content.find(b => b.type === 'tool_use');\n    if (block && block.input) return block.input;\n    throw new Error('LLM returned no tool_use block: ' + JSON.stringify(resp).slice(0, 200));\n  }\n  const text = (resp?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');   // gemini\n  const clean = text.replace(/^```(json)?/i, '').replace(/```$/, '').trim();\n  try { return JSON.parse(clean); }\n  catch (e) { throw new Error('LLM returned non-JSON output: ' + text.slice(0, 200)); }\n}\n/** usage(resp) -> token usage object of either provider (kept on the record for cost tracking) */\nfunction usage(resp) { return resp?.usage || resp?.usageMetadata || null; }\n\n/**\n * NODE 10 — Build Record   (Step 5: Structured output)\n *\n * INPUT  : $input.first().json = RAW API response from \"Summarize (LLM)\"  -> { summary }\n * READS  : $('Route & Escalate').first().json -> everything computed so far\n * OUTPUT : the FINAL record (this exact object is what lands in output/records.json):\n *          { id, received_at, processed_at, source, raw_message, classification, enrichment,\n *            routing, escalation, summary, pipeline{model, prompt_version, queue_base, processing_ms, llm_usage} }\n * NEXT   : three consumers in parallel —\n *          \"Respond to Webhook\"  returns it to the caller,\n *          \"Record to JSON File\" -> \"Write Record to Disk\" persist it as /data/records/<id>.json,\n *          \"Dispatch to Queue\"   POSTs it to <queue_base>/<routing.final_queue>.\n */\nconst prev = $('Route & Escalate').first().json;   // record with routing + escalation\nconst resp = $input.first().json;\nconst s = parseLLM(resp);                           // -> { summary }\n\nconst record = {\n  id: prev.id,\n  received_at: prev.received_at,\n  processed_at: new Date().toISOString(),\n  source: prev.source,\n  raw_message: prev.raw_message,\n  classification: prev.classification,\n  enrichment: prev.enrichment,\n  routing: prev.routing,\n  escalation: prev.escalation,\n  summary: String(s.summary || ''),\n  pipeline: {\n    model: prev.pipeline.model,\n    prompt_version: prev.pipeline.prompt_version,\n    queue_base: prev.pipeline.queue_base,\n    processing_ms: Date.now() - prev.pipeline.started_ms,\n    llm_usage: { ...prev.llm_usage, summary: usage(resp) },\n  },\n};\nreturn [{ json: record }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        0
+      ],
+      "id": "475fc98a-94c9-4a3f-ac72-0a2a9151596b",
+      "name": "Build Record"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2240,
+        0
+      ],
+      "id": "2a6ddacc-71ca-4240-b888-c2eaeb7f9432",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "options": {
+          "format": true,
+          "fileName": "={{ $json.id }}.json"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.2,
+      "position": [
+        2464,
+        0
+      ],
+      "id": "73d3c962-942a-4aa5-bb4e-8f6fb2400fbc",
+      "name": "Record to JSON File"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/records/{{ $('Build Record').first().json.id }}.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        2688,
+        0
+      ],
+      "id": "86747756-6e41-48ac-a96a-ee1894c9654d",
+      "name": "Write Record to Disk"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.pipeline.queue_base }}/{{ $json.routing.final_queue }}",
+        "sendBody": true,
+        "specifyBody": "=json",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2416,
+        256
+      ],
+      "id": "daa739bc-ed90-495a-928e-64b440b2b931",
+      "name": "Dispatch to Queue",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Prompt Library",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Library": {
+      "main": [
+        [
+          {
+            "node": "Classify (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Enrich (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Parse Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Route & Escalate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route & Escalate": {
+      "main": [
+        [
+          {
+            "node": "Summarize (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Build Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Record": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Record to JSON File",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Dispatch to Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record to JSON File": {
+      "main": [
+        [
+          {
+            "node": "Write Record to Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Record to Disk": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
